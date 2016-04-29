@@ -1,6 +1,7 @@
 import requests
 from xml.etree import ElementTree
 import os
+from bart_info import gets_lat_lon_for_many_stops
 
 # from model import Agency, Route
 
@@ -75,45 +76,33 @@ def gets_routes_for_agency(agencies):
 
 def gets_stops_for_route(routes):
     """gets all the stops for a route"""
-    stops = []
+    
 
     for route in routes:
 #       '44-OShaughnessy': ('44', 'SF-MUNI', 'True')}
-        print "this is the route:", route
         route_code = routes[route][0]
         agency = routes[route][1]
         direction = routes[route][2]
-        print "this is the agency:", agency
-        print "this is the direction:", direction
 
         if direction:
-            print "GOT INTO IF"
             for direction in ["Inbound", "Outbound"]:
                 list_of_stops_agency = 'http://services.my511.org/Transit2.0/GetStopsForRoute.aspx?token=' + TOKEN_511 + '&routeIDF=' + agency + '~' + route_code + '~' + direction
-                print list_of_stops_agency
         else:
-            print "GOT INTO ELSE"
             list_of_stops_agency = 'http://services.my511.org/Transit2.0/GetStopsForRoute.aspx?token=' + TOKEN_511 + '&routeIDF=' + agency + '~' + route_code
-            print list_of_stops_agency
         response_list_of_stops = requests.get(list_of_stops_agency)
 
         stops_tree = ElementTree.fromstring(response_list_of_stops.text)
+
+        stops = []
 
         for node in stops_tree.iter('Stop'):
             name = node.attrib.get('name')
             code = node.attrib.get('StopCode')
             stops.append((name, code))
 
-            # stop = Stop(
-            #             stop=code,
-            #             name=name,
-            #             )
+        routes[route] = {"route_code": route_code, "agency": agency, "direction": direction, "stops": stops}
 
-            #     db.session.add(stop)
-
-            # db.session.commit()
-
-    return stops
+    return routes
 
 
 def gets_departure_time_by_stop(stop):
@@ -164,9 +153,70 @@ def get_stop_for_user_route(user_stop, destination_stop, agency, route, directio
     return route
 
 
-agencies = gets_agencies()
-routes = gets_routes_for_agency(agencies)
-stops = gets_stops_for_route(routes)
+def checks_stop_names_same(stops_routes_agencies_info):
+    s = {}
+    for stop in stops_routes_agencies_info:
+        for st in stops_routes_agencies_info[stop]["stops"]:
+            s.setdefault(st[1], []).append(st[0])
+    names_same = True
+    # checks if the names match:
+    for item in s:
+        if len(s[item]) > 1:
+            match = s[item][0]
+            for i in s[item]:
+                if i != match:
+                    print "this is the thing", item
+                    print "this is the thing's thing:", s[item]
+                    names_same = False
+
+    return names_same
+
+
+def gets_just_stops_from_info(stops_routes_agencies_info):
+
+    stops = {"SF-MUNI": set(), "BART": set(), "Caltrain": set()}
+
+    for item in stops_routes_agencies_info:
+        for stop in stops_routes_agencies_info[item]['stops']:
+            agency = stops_routes_agencies_info[item]['agency']
+            stops[agency].add(stop)
+
+    return stops
+
+
+def add_stops_to_db(stops_routes_agencies_info):
+    """addes stop and their info to db"""
+
+    for item in stops_routes_agencies_info:
+        print "this is Route name:",item
+        print "this is the direction:", stops_routes_agencies_info[item]['direction']
+        print "this is the route_code:", stops_routes_agencies_info[item]['route_code']
+        print "this is the agency:", stops_routes_agencies_info[item]['agency']
+        print "these are the stops:", stops_routes_agencies_info[item]['stops']
+
+        # route = Stop(
+        #             route_id=int(code),
+        #             name=name,
+        #             agency_name=agency
+        #             )
+
+        #     db.session.add(route)
+
+        # db.session.commit()
+
+
+
+agencies_info = gets_agencies()
+routes_agencies_info = gets_routes_for_agency(agencies_info)
+stops_routes_agencies_info = gets_stops_for_route(routes_agencies_info)
+stops = gets_just_stops_from_info(stops_routes_agencies_info)
+bart_stops_lat_lng = gets_lat_lon_for_many_stops(stops['BART'])
+
+
+
+
+
+
 
 # if __name__ == "__main__":
 #     connect_to_db(app)
