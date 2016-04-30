@@ -204,11 +204,14 @@ def add_stops_to_db(stops_routes_agencies_info):
 
         # db.session.commit()
 
+def gets_muni_routes(stops_routes_agencies_info):
 
+    
 
 agencies_info = gets_agencies()
 routes_agencies_info = gets_routes_for_agency(agencies_info)
 stops_routes_agencies_info = gets_stops_for_route(routes_agencies_info)
+muni_routes = 
 stops = gets_just_stops_from_info(stops_routes_agencies_info)
 bart_stops_lat_lng = gets_lat_lon_for_many_stops(stops['BART'])
 
