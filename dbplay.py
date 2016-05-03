@@ -2,6 +2,7 @@ import requests
 from xml.etree import ElementTree
 import os
 from bart_info import gets_lat_lon_for_many_stops
+from muni_info import gets_stop_lat_lon_routes
 
 # from model import Agency, Route
 
@@ -74,24 +75,10 @@ def gets_routes_for_agency(agencies):
     return routes
 
 
-def gets_stops_for_route(routes):
-    """gets all the stops for a route"""
-    
+def gets_stops_for_a_route(url):
+        response = requests.get(url)
 
-    for route in routes:
-#       '44-OShaughnessy': ('44', 'SF-MUNI', 'True')}
-        route_code = routes[route][0]
-        agency = routes[route][1]
-        direction = routes[route][2]
-
-        if direction:
-            for direction in ["Inbound", "Outbound"]:
-                list_of_stops_agency = 'http://services.my511.org/Transit2.0/GetStopsForRoute.aspx?token=' + TOKEN_511 + '&routeIDF=' + agency + '~' + route_code + '~' + direction
-        else:
-            list_of_stops_agency = 'http://services.my511.org/Transit2.0/GetStopsForRoute.aspx?token=' + TOKEN_511 + '&routeIDF=' + agency + '~' + route_code
-        response_list_of_stops = requests.get(list_of_stops_agency)
-
-        stops_tree = ElementTree.fromstring(response_list_of_stops.text)
+        stops_tree = ElementTree.fromstring(response.text)
 
         stops = []
 
@@ -100,9 +87,37 @@ def gets_stops_for_route(routes):
             code = node.attrib.get('StopCode')
             stops.append((name, code))
 
-        routes[route] = {"route_code": route_code, "agency": agency, "direction": direction, "stops": stops}
+        return stops
 
-    return routes
+def gets_stops_for_routes(routes):
+    """gets all the stops for a route"""
+
+    new_routes = {}
+
+    for route in routes:
+#       '44-OShaughnessy': ('44', 'SF-MUNI', 'True')}
+        route_code = routes[route][0]
+        agency = routes[route][1]
+        direction = routes[route][2]
+
+        if agency == "SF-MUNI":
+            for direction in ["Inbound", "Outbound"]:
+                url = 'http://services.my511.org/Transit2.0/GetStopsForRoute.aspx?token=' + TOKEN_511 + '&routeIDF=' + agency + '~' + route_code + '~' + direction
+                stops = gets_stops_for_a_route(url)
+                new_routes[route, direction] = {"route_code": route_code, "agency": agency, "direction": direction, "stops": stops}
+
+        if agency == "Caltrain":
+            for direction in ["NB", "SB1", "SB2", "SB3"]:
+                url = 'http://services.my511.org/Transit2.0/GetStopsForRoute.aspx?token=' + TOKEN_511 + '&routeIDF=' + agency + '~' + route_code + '~' + direction
+                stops = gets_stops_for_a_route(url)
+                new_routes[route, direction] = {"route_code": route_code, "agency": agency, "direction": direction, "stops": stops}
+
+        elif agency == "BART":
+            url = 'http://services.my511.org/Transit2.0/GetStopsForRoute.aspx?token=' + TOKEN_511 + '&routeIDF=' + agency + '~' + route_code
+            stops = gets_stops_for_a_route(url)
+            new_routes[route, direction] = {"route_code": route_code, "agency": agency, "direction": direction, "stops": stops}
+
+    return new_routes
 
 
 def gets_departure_time_by_stop(stop):
@@ -204,14 +219,21 @@ def add_stops_to_db(stops_routes_agencies_info):
 
         # db.session.commit()
 
-def gets_muni_routes(stops_routes_agencies_info):
+def gets_muni_routes(routes_agencies_info):
+    """returns only the routes for muni"""
 
-    
+    muni = []
+    for item in routes_agencies_info:
+        if routes_agencies_info[item]['agency'] == "SF-MUNI":
+            muni.append(item)
+
+    return muni
+
 
 agencies_info = gets_agencies()
 routes_agencies_info = gets_routes_for_agency(agencies_info)
-stops_routes_agencies_info = gets_stops_for_route(routes_agencies_info)
-muni_routes = 
+stops_routes_agencies_info = gets_stops_for_routes(routes_agencies_info)
+# muni_stops = gets_stop_lat_lon_routes(gets_muni_routes(routes_agencies_info))
 stops = gets_just_stops_from_info(stops_routes_agencies_info)
 bart_stops_lat_lng = gets_lat_lon_for_many_stops(stops['BART'])
 
